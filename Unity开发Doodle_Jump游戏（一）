@@ -1,0 +1,444 @@
+​
+
+前言
+        最近在玩一些以前的小游戏，找到了Doodle_Jump这个游戏，感觉很好玩，但我玩到的都是别人的二创，没找到原版，突然感觉这个游戏很适合练手，就决定用Unity自制一个，并把过程发出来，提供给大家学习，里面很多实现方法是我自己想的，不一定是最优解，仅供大家参考，所有素材全部发到GitHub，有些是我自己截图和用ps画的，供大家学习。
+
+游戏实现
+一、创建工程
+        首先先创建一个新的2D工程，命名为Doodle_Junp，由于我们要开发手机游戏，所以先进入File->Build Settings里，选中Android，然后点击Switch Platform，切换成安卓手机开发模式。
+
+
+
+        切换成功后点击Player Settings，选择Icon，更换游戏图标。
+
+
+
+        更换成功后便可正式开发了。
+
+二、背景和人物
+        首先找到背景图片，直接拖到工程内，并改名为background，把工程改名为game，由于背景会随着摄像头一起向上动，所以把背景拖到摄像头下方，变成摄像头的子物体，让它和摄像头一起动。
+
+
+
+        此时游戏运行页面可以选择Game，分辨率选一个和手机差不多的就行，因为之后会对游戏进行手机自适应分辨率。
+
+
+
+        接下来将角色拖进工程中，改名player，首先我们要了解角色要用到的功能，首先是会下落，所以要添加重力，为角色添加Rigidbody2D，将重力设置成1.5（我试过用1的话下落速冻太慢了），然后底部要触碰弹力板，所以要为角色添加Box Collider 2D，调整大小到角色脚部。
+
+
+
+
+
+        接下来就是为角色添加代码，让角色动起来，为角色添加一个名为player的代码文件，进入文件进行编辑。如下图：
+
+using System.Collections;
+using System.Collections.Generic;
+using UnityEngine;
+
+public class player : MonoBehaviour
+{
+    public float moveSpeed;
+    Rigidbody2D rb;
+    // Start is called before the first frame update
+    void Start()
+    {
+        rb = GetComponent<Rigidbody2D>();
+    }
+
+    // Update is called once per frame
+    void Update()
+    {
+        /* float h = Input.acceleration.x; */
+        float h = Input.GetAxis("Horizontal");
+        rb.velocity = new Vector2(h * moveSpeed, rb.velocity.y);
+        Trun(h);
+    }
+    void Trun(float h){
+        if(h < 0){
+            transform.localScale = new Vector3(1, 1, 1);
+        }
+        else if(h > 0){
+            transform.localScale = new Vector3(-1, 1, 1);
+        }
+    }
+}
+
+        我先定义了两个变量，一个float型的moveSpeed，用来表示左右移动的速度，用public公有使变量可以在代码外改变，另一个是用来获取自身的Rigidbody2D，然后在Start函数里先获取自身的Rigidbody2D，在Update函数里用 Input.GetAxis("Horizontal") 来获取键盘的AD键，虽然是手机游戏，但要先在电脑测试，所以先用 Input.GetAxis("Horizontal") 来用键盘控制人物，等发布时用Input.acceleration.x，可以在手机上用重力摇晃控制人物。然后使用 rb.velocity = new Vector2(h * moveSpeed, rb.velocity.y) 来改变人物运动，Vector2(h * moveSpeed, rb.velocity.y) 中，x=h * moveSpeed，改变人物左右运动，y=rb.velocity.y，让上下高度保持原样，就成功做到了人物左右移动。
+
+        最后定义并运行Trun函数，使用改变人物的朝向，让人物向左移动的时候面朝左，向右移动的时候面朝右。然后在代码外将moveSpeed变为15，接下来运行，可以发现能成功用AD键控制人物移动。
+
+三、创建平台
+1）普通平台
+普通平台很好做，由于人物是从下往上跳的，而平台要在人物从上往下落的时候有触发，从下往上升的时候直接穿过去，所以我们先找到素材图：
+
+
+
+        点击Sprite Editor进行裁剪：
+
+
+
+        将要用的平台裁剪下来，点击Apply，关掉后，就可以拿到各个平台，将普通平台拖入工程，改名为platform：
+
+
+
+        为平台添加Edge Collider 2D 和Platform Effector 2D，将Edge Collider 2D的Used by Effector点开，使Edge Collider 2D能用Platform Effector 2D判断角色在平台上方，修改Edge Collider 2D位置，使其在平台上方。
+
+
+
+
+
+        接下来为平台添加代码，添加前将各个图层修改一下，把背景设为-1，人物设为10，平台为0，保证角色在平台上方，图层为Order in Layer：
+
+
+
+        平台代码：
+
+using System.Collections;
+using System.Collections.Generic;
+using UnityEngine;
+
+public class platform : MonoBehaviour
+{
+    public float bounceSpeed = 4f;
+
+    private void OnCollisionEnter2D(Collision2D collision) {
+        if(collision.contacts[0].normal == Vector2.down){
+            Rigidbody2D rb = collision.gameObject.GetComponent<Rigidbody2D>();
+            if(rb != null){
+                rb.velocity = Vector2.up * bounceSpeed;
+            }
+        }
+    }
+}
+        代码定义一个bounceSpeed变量，用来表示角色碰到平台后向上的速度，用public能在代码外调，然后使用OnCollisionEnter2D获取与其碰撞的物体，判断与平台上方碰撞，改变碰撞的角色运动，让其向上跳，这个代码也可以套用在其他平台上，改变bounceSpeed速度为11，运行发现角色成功跳跃。
+
+
+
+2）破碎平台
+        破碎平台我在查询其他人的教程的时候，发现很多人都是套用普通平台的模板，然后弹起人后碎裂，但我查询原版后发现人物踩了之后就直接掉落下去，人物不会弹起来，所以要将破碎平台与普通平台分开，不能套用。
+
+        首先用同样的方式将平台裁剪下来，并且将破碎动态也一起裁剪下来，将平台拖入工程。
+
+
+
+        接下来为平台添加Edge Collider 2D和Rigidbody2D，将Edge Collider 2D的Is Trigger打开，目的是让平台无法与人物碰撞，Rigidbody2D目的是让人物撞到后平台下落，先将重力设置为0。
+
+
+
+        然后调整Edge Collider 2D的位置，要在平台上面一点，大概距离一个人物碰撞盒子的高度。
+
+
+
+        接下来为平台添加动画，选中工程里的破碎平台，点击Animation，点击创建，命名为Week_idle，将Samples设置为12，将破碎平台的第一帧拖进去。
+
+
+
+        然后点击左上角的箭头，点击Create New Clip...创建Week_Break和Week_stop。
+
+
+
+        Week_Break将全部帧拖入进去，Week_stop将最后一帧拖入进去。
+
+
+
+
+
+        接下来点击Animator，右键选择Make Transition，将各个动画连接起来。
+
+
+
+        点击左边加号，选择Trigger，添加一个trigger。
+
+
+
+        修改添加的两条线，第一条关掉Has Exit Time，让动画不要自动跳转，下方Conditions选择新添加的trigger，第二条不要关，要其自动跳转，其他不变。
+
+
+
+
+
+        接下来就是写破碎平台的代码了。
+
+using System.Collections;
+using System.Collections.Generic;
+using UnityEngine;
+
+public class weekplatform : MonoBehaviour
+{
+    private Rigidbody2D rb;
+    private float weakheight = 0f;
+    // Start is called before the first frame update
+    void Start()
+    {
+        rb = GetComponent<Rigidbody2D>();
+    }
+
+    private void OnTriggerEnter2D (Collider2D collision) {
+        Transform t = collision.gameObject.transform;
+        weakheight = t.position.y;
+    }
+
+    private void OnTriggerExit2D(Collider2D collision) {
+        Transform t = collision.gameObject.transform;
+        if(weakheight > t.position.y){
+            if(GetComponent<Animator>() != null){
+                //Play animation
+                //Destroy the platform
+                GetComponent<Animator>().SetTrigger("trigger");
+                Invoke("HideGameObject", 0.2f);
+            }
+        }
+    }
+
+    void HideGameObject(){
+        rb.gravityScale = 1.5f;
+    }
+}
+        首先先定义两个变量，一个Rigidbody2D的rb，用来获取破碎平台的Rigidbody2D，以此改变它的重力参数，另一个是float型的weakheight，目的是记录此时player的高度，然后用OnTriggerEnter2D和OnTriggerExit2D函数，一个是穿入函数，一个是穿出函数，当player穿入触发器时，记录此时player的高度，当player穿出时，与穿入高度比较，如果比穿入高度小的话，说明player是从上往下掉的，就触发动画，然后使用Invoke函数在0.2f时刻后调用HideGameObject函数，改变破碎平台的重力，让其往下掉。
+
+四、生成场景和启动游戏
+        接下来就是对摄像头进行编辑了，首先我们要让player从左右离开摄像头后，会从另一端出来，这个用Box Collider 2D判断player离开后传送到另一边就行，还有player往上跳时摄像头跟随player。首先先为摄像头添加Box Collider 2D和Rigidbody2D，将Rigidbody2D的Body Type改成Kinematic。
+
+
+
+        然后编辑Box Collider 2D的位置，正好包住摄像头的位置（可以先关掉背景来调整）。
+
+
+
+        然后为摄像机添加ChangeSide的代码文件：
+
+using System.Collections;
+using System.Collections.Generic;
+using UnityEngine;
+
+public class ChangeSide : MonoBehaviour
+{
+    public Transform doodler;
+    private float halfheight = 4.5f;
+    void Start() {
+        Camera mainCamera = Camera.main;
+        BoxCollider2D boxCollider2D = GetComponent<BoxCollider2D>();
+        float screenWidth = Screen.width;
+        float screenHight = Screen.height;
+        boxCollider2D.size = new Vector2(screenWidth / mainCamera.pixelWidth * mainCamera.orthographicSize, screenHight / mainCamera.pixelHeight * mainCamera.orthographicSize * 2);    
+        halfheight = screenHight / mainCamera.pixelHeight * mainCamera.orthographicSize;
+    }
+    private void OnTriggerExit2D(Collider2D collision) {
+        Transform t = collision.gameObject.transform;
+        if(doodler == t){
+            if(t.position.y > transform.position.y - halfheight + 0.5f){
+                t.position = new Vector3((-t.position.x)/1f,t.position.y,0f);
+            }
+        }
+    }
+}
+        代码定义了一个doodler公有变量，用来获取player，在Start函数里，获取当前摄像机的宽和高，以此来改变摄像机的Box Collider 2D的宽和高，这样就做到了多手机适配，OnTriggerExit2D函数判断当有东西穿出时，判断与doodler是否一样，以此判断穿出的是不是player，如果是，将其x反转，当然还要判断在人物高于Box Collider 2D底部才反转，为了防止人物触底也反转。
+
+        保存代码后，将player拖入代码里的变量里。
+
+
+
+        接下来再为摄像头添加一个Camerafollow代码文件，编辑代码：
+
+using System.Collections;
+using System.Collections.Generic;
+using UnityEngine;
+
+public class Camerafollow : MonoBehaviour
+{
+    public int fraction;
+    public Transform target;
+    public float smoothSpeed = 0.3f;
+    Vector3 speed;
+    void Start(){
+        fraction=0;
+    }
+    void Update(){
+        fraction= (int)transform.position.y;
+    }
+    private void LateUpdate() {
+        if(target.position.y > transform.position.y){
+            Vector3 targetPos = new Vector3(0f, target.position.y, -10f);
+            transform.position = Vector3.SmoothDamp(transform.position, targetPos, ref speed, smoothSpeed *Time.deltaTime);
+        }
+    }
+}
+        此代码获取player的高度和自身的高度，再LateUpdate函数循环判断player是否高于自身，如果高的话，对自身施加一个向上的速度。
+
+        这样摄像头就会跟随player且player可以左右穿梭了。
+
+        接下来将制作出来的两个平台拖入一个文件夹里，让它们变成预制件，之后所有本不存在于场景，要生成的（包括平台，敌人等）都要变成预制件，用代码调用渲染到场景中。
+
+
+
+        然后在工程里新建一个空物体，命名为GameManager，在里面添加代码，来生成平台。
+
+
+
+        为物体添加Levelgenerator代码文件，同时新建两个空物体PlatformPool和PlatformWeak，将其拖入代码里，然后将预制件拖入代码中。
+
+
+
+using System.Collections;
+using System.Collections.Generic;
+using UnityEngine;
+
+public class Levelgenerator : MonoBehaviour
+{
+    private int flag = 0;
+    public Transform objA;
+    public GameObject[] platformPrefabs;
+    float currentYPos = -5f;
+    public float cameraHeight = 5.0f;
+    private float mywidth;
+
+    public Transform platformPool;
+    public Transform platformWeak;
+    // Start is called before the first frame update
+    void Start()
+    {
+        Camera mainCamera = Camera.main;
+        float screenWidth = Screen.width;
+        mywidth = screenWidth / mainCamera.pixelWidth * mainCamera.orthographicSize / 2;
+        SpawnPlatformPool();
+
+        while(currentYPos < Camera.main.transform.position.y + cameraHeight){
+            PickNewPlatform();
+        }
+    }
+
+
+    void SpawnPlatformPool(){
+        int basicPlatformAmount = 30;
+        int weakPlatformAmount = 15;
+
+        for(int i = 0; i < basicPlatformAmount; i++) {
+            GameObject platform = Instantiate(platformPrefabs[0], platformPool);
+            platform.SetActive(false);
+        }
+
+        for(int i = 0; i < weakPlatformAmount; i++) {
+            GameObject platform = Instantiate(platformPrefabs[1], platformWeak);
+            platform.SetActive(false);
+        }
+    }
+
+    void Generate(int r,float x,Transform transform){
+        do{
+            r = Random.Range(0, transform.childCount);
+        }while(transform.GetChild(r).gameObject.activeInHierarchy);
+        transform.GetChild(r).position = new Vector2(x, currentYPos);
+        transform.GetChild(r).gameObject.SetActive(true);
+    }    
+    void PickNewPlatform(){
+        currentYPos += Random.Range(0.3f, 1f);
+        float xPos = Random.Range(-mywidth/1.2f, mywidth/1.2f);
+        int weak = Random.Range(-1,5);
+        int r = 0;
+        if(weak < 0){
+            Generate(r,xPos,platformWeak);
+        }else{
+            Generate(r,xPos,platformPool);
+        }
+    }
+    // Update is called once per frame
+    void Update()
+    {
+        flag = objA.gameObject.GetComponent<Camerafollow>().fraction;  
+        if(currentYPos < Camera.main.transform.position.y + cameraHeight){
+            PickNewPlatform();
+        }
+    }
+}
+        首先解释一下我的代码的目的，我这是参考了网上的一些大佬，就是不像大部分游戏的方法，在页面内生成平台，然后出页面直接销毁，而是在最开始就生成一些平台在PlatformPool和PlatformWeak中（PlatformPool生成普通平台，PlatformWeak生成破碎平台）。然后将所有平台隐藏，在需要的时候将其放到对应位置，然后让其显现，等离开摄像头后又将其隐藏。
+
+        主要方法就是如此，位置的话用Random.Range()函数随机左右和上下距离，然后生成平台。
+
+        然后还有最后一步，就是对两个平台代码进行添加，添加离开摄像头隐藏（因为生成平台是从所有隐藏的平台中循环查找，如果不添加的话，当所有平台都显现的时候，就会查找不到报错，当然，也可以判断如果全部显现就再在PlatformPool和PlatformWeak中添加隐藏平台）。
+
+普通平台完整代码：
+
+using System.Collections;
+using System.Collections.Generic;
+using UnityEngine;
+
+public class platform : MonoBehaviour
+{
+    public float bounceSpeed = 4f;
+
+    private void OnCollisionEnter2D(Collision2D collision) {
+        if(collision.contacts[0].normal == Vector2.down){
+            Rigidbody2D rb = collision.gameObject.GetComponent<Rigidbody2D>();
+            if(rb != null){
+                rb.velocity = Vector2.up * bounceSpeed;
+            }
+        }
+    }
+    private void OnTriggerExit2D(Collider2D collision) {
+        if(collision.CompareTag("MainCamera")){
+            gameObject.SetActive(false);
+        }
+    }
+}
+破碎平台完整代码：
+
+​
+using System.Collections;
+using System.Collections.Generic;
+using UnityEngine;
+
+public class weekplatform : MonoBehaviour
+{
+    private Rigidbody2D rb;
+    private float weakheight = 0f;
+    // Start is called before the first frame update
+    void Start()
+    {
+        rb = GetComponent<Rigidbody2D>();
+    }
+
+    private void OnTriggerEnter2D (Collider2D collision) {
+        Transform t = collision.gameObject.transform;
+        weakheight = t.position.y;
+    }
+
+    private void OnTriggerExit2D(Collider2D collision) {
+        if(collision.CompareTag("MainCamera")){
+            rb.gravityScale = 0f;
+            gameObject.SetActive(false);
+        }
+        Transform t = collision.gameObject.transform;
+        if(weakheight > t.position.y){
+            if(GetComponent<Animator>() != null){
+                //Play animation
+                //Destroy the platform
+                GetComponent<Animator>().SetTrigger("trigger");
+                Invoke("HideGameObject", 0.2f);
+            }
+        }
+    }
+
+    void HideGameObject(){
+        rb.gravityScale = 2f;
+    }
+}
+
+​
+
+
+
+        这样游戏就基本能玩了，本篇文章就写到这里，之后开始界面和游戏死亡判定放在下一篇文章，当然，想要把游戏做的更好，还要添加更多的功能和元素，比如说游戏积分，排行榜，多种模式（如经典模式，无尽模式等），多种平台和怪物，点击射击等，还有很多的功能要写，就在之后的文章在写吧，拜拜，我们下篇文章再见！
+
+工程链接：https://github.com/Wally510/Doodle_Jump.git
+
+素材链接：
+
+1、百度网盘：https://pan.baidu.com/s/1z1ywIgmV6lrf_lFcvbIF-g?pwd=d2gl 提取码：d2gl
+
+2、GitHub：https://github.com/Wally510/Doodle_Jump/tree/a1a2d3e927e40476152274b87e6ea400a8e1c1ae/Doodle_Jump/Assets/DoodleJump/Sprites
+
+                
+
+
+​
